@@ -1,24 +1,28 @@
-﻿using Steam.Models;
+﻿using AutoMapper;
+using Steam.Models;
 using SteamWebAPI2.Models;
 using SteamWebAPI2.Utilities;
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
     public class SteamApps : ISteamApps
     {
-        private ISteamWebInterface steamWebInterface;
+        private readonly IMapper mapper;
+        private readonly ISteamWebInterface steamWebInterface;
 
         /// <summary>
         /// Default constructor established the Steam Web API key and initializes for subsequent method calls
         /// </summary>
-        /// <param name="steamWebApiKey"></param>
-        public SteamApps(string steamWebApiKey, ISteamWebInterface steamWebInterface = null)
+        /// <param name="steamWebRequest"></param>
+        public SteamApps(IMapper mapper, ISteamWebRequest steamWebRequest, ISteamWebInterface steamWebInterface = null)
         {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+
             this.steamWebInterface = steamWebInterface == null
-                ? new SteamWebInterface(steamWebApiKey, "ISteamApps")
+                ? new SteamWebInterface("ISteamApps", steamWebRequest)
                 : steamWebInterface;
         }
 
@@ -30,7 +34,7 @@ namespace SteamWebAPI2.Interfaces
         {
             var steamWebResponse = await steamWebInterface.GetAsync<SteamAppListResultContainer>("GetAppList", 2);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<SteamAppListResultContainer>,
                 ISteamWebResponse<IReadOnlyCollection<SteamAppModel>>>(steamWebResponse);
 
@@ -52,8 +56,8 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<SteamAppUpToDateCheckResultContainer>("UpToDateCheck", 1, parameters);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
-                ISteamWebResponse<SteamAppUpToDateCheckResultContainer>, 
+            var steamWebResponseModel = mapper.Map<
+                ISteamWebResponse<SteamAppUpToDateCheckResultContainer>,
                 ISteamWebResponse<SteamAppUpToDateCheckModel>>(steamWebResponse);
 
             return steamWebResponseModel;

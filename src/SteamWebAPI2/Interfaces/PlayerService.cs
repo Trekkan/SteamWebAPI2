@@ -1,26 +1,31 @@
-﻿using Steam.Models.SteamCommunity;
+﻿using AutoMapper;
+using Newtonsoft.Json;
+using Steam.Models.SteamCommunity;
 using SteamWebAPI2.Models.SteamCommunity;
 using SteamWebAPI2.Models.SteamPlayer;
 using SteamWebAPI2.Utilities;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
+using System.Net;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
     public class PlayerService : IPlayerService
     {
-        private ISteamWebInterface steamWebInterface;
+        private readonly ISteamWebInterface steamWebInterface;
+        private readonly IMapper mapper;
 
         /// <summary>
         /// Default constructor established the Steam Web API key and initializes for subsequent method calls
         /// </summary>
-        /// <param name="steamWebApiKey"></param>
-        public PlayerService(string steamWebApiKey, ISteamWebInterface steamWebInterface = null)
+        /// <param name="steamWebRequest"></param>
+        public PlayerService(IMapper mapper, ISteamWebRequest steamWebRequest, ISteamWebInterface steamWebInterface = null)
         {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+
             this.steamWebInterface = steamWebInterface == null
-                ? new SteamWebInterface(steamWebApiKey, "IPlayerService")
+                ? new SteamWebInterface("IPlayerService", steamWebRequest)
                 : steamWebInterface;
         }
 
@@ -44,8 +49,8 @@ namespace SteamWebAPI2.Interfaces
                 return null;
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
-                ISteamWebResponse<PlayingSharedGameResultContainer>, 
+            var steamWebResponseModel = mapper.Map<
+                ISteamWebResponse<PlayingSharedGameResultContainer>,
                 ISteamWebResponse<ulong?>>(steamWebResponse);
 
             return steamWebResponseModel;
@@ -71,7 +76,7 @@ namespace SteamWebAPI2.Interfaces
                 return null;
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<CommunityBadgeProgressResultContainer>,
                 ISteamWebResponse<IReadOnlyCollection<BadgeQuestModel>>>(steamWebResponse);
 
@@ -96,7 +101,7 @@ namespace SteamWebAPI2.Interfaces
                 return null;
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<BadgesResultContainer>,
                 ISteamWebResponse<BadgesResultModel>>(steamWebResponse);
 
@@ -119,7 +124,7 @@ namespace SteamWebAPI2.Interfaces
                 return null;
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<SteamLevelResultContainer>,
                 ISteamWebResponse<uint?>>(steamWebResponse);
 
@@ -145,16 +150,20 @@ namespace SteamWebAPI2.Interfaces
             if (includeFreeGames.HasValue) { includeFreeGamesBit = includeFreeGames.Value ? 1 : 0; }
 
             List<SteamWebRequestParameter> parameters = new List<SteamWebRequestParameter>();
-            parameters.AddIfHasValue(includeFreeGamesBit, "include_played_Free_games");
-            parameters.AddIfHasValue(steamId, "steamid");
-            parameters.AddIfHasValue(includeAppInfoBit, "include_appinfo");
 
-            // join the app ids by commas since that's what the Steam Web API expects
-            if (appIdsToFilter != null)
+            var inputJsonObj = new
             {
-                string appIdsDelimited = String.Join(",", appIdsToFilter);
-                parameters.AddIfHasValue(appIdsDelimited, "appids_filter");
-            }
+                steamid = steamId,
+                include_played_Free_games = includeFreeGamesBit,
+                include_appinfo = includeAppInfoBit,
+                appids_filter = appIdsToFilter
+            };
+            var inputJson = JsonConvert.SerializeObject(inputJsonObj, new JsonSerializerSettings()
+            {
+                NullValueHandling = NullValueHandling.Ignore
+            });
+
+            parameters.AddIfHasValue(WebUtility.UrlEncode(inputJson), "input_json");
 
             var steamWebResponse = await steamWebInterface.GetAsync<OwnedGamesResultContainer>("GetOwnedGames", 1, parameters);
 
@@ -168,14 +177,14 @@ namespace SteamWebAPI2.Interfaces
             {
                 foreach (var ownedGame in steamWebResponse.Data.Result.OwnedGames)
                 {
-                    if (!String.IsNullOrWhiteSpace(ownedGame.Name))
+                    if (!string.IsNullOrWhiteSpace(ownedGame.Name))
                     {
                         ownedGame.Name = ownedGame.Name.Trim();
                     }
                 }
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<OwnedGamesResultContainer>,
                 ISteamWebResponse<OwnedGamesResultModel>>(steamWebResponse);
 
@@ -199,7 +208,7 @@ namespace SteamWebAPI2.Interfaces
                 return null;
             }
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<RecentlyPlayedGameResultContainer>,
                 ISteamWebResponse<RecentlyPlayedGamesResultModel>>(steamWebResponse);
 

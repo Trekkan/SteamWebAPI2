@@ -1,9 +1,9 @@
-﻿using SteamWebAPI2.Utilities;
+﻿using AutoMapper;
+using SteamWebAPI2.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2
@@ -15,16 +15,26 @@ namespace SteamWebAPI2
     {
         private const string steamStoreApiBaseUrl = "http://store.steampowered.com/api/";
         private readonly SteamStoreRequest steamStoreRequest;
-        private readonly string endpointName;
+
+        protected readonly IMapper mapper;
 
         /// <summary>
         /// Constructs and maps the default objects for Steam Store Web API use
         /// </summary>
-        public SteamStoreInterface()
+        public SteamStoreInterface(IMapper mapper)
         {
-            this.steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl);
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl);
+        }
 
-            AutoMapperConfiguration.Initialize();
+        /// <summary>
+        /// Constructs and maps based on a custom http client
+        /// </summary>
+        /// <param name="httpClient">Client to make requests with</param>
+        public SteamStoreInterface(IMapper mapper, HttpClient httpClient)
+        {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl, httpClient);
         }
 
         /// <summary>
@@ -33,9 +43,17 @@ namespace SteamWebAPI2
         /// <param name="steamStoreApiBaseUrl">Steam Store Web API URL</param>
         public SteamStoreInterface(string steamStoreApiBaseUrl)
         {
-            this.steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl);
+            steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl);
+        }
 
-            AutoMapperConfiguration.Initialize();
+        /// <summary>
+        /// Constructs and maps based on a custom http client and custom Steam Store Web API URL
+        /// </summary>
+        /// <param name="steamStoreApiBaseUrl">Steam Store Web API URL</param>
+        /// <param name="httpClient">Client to make requests with</param>
+        public SteamStoreInterface(string steamStoreApiBaseUrl, HttpClient httpClient)
+        {
+            steamStoreRequest = new SteamStoreRequest(steamStoreApiBaseUrl, httpClient);
         }
 
         /// <summary>
@@ -47,7 +65,7 @@ namespace SteamWebAPI2
         /// <returns>Deserialized response object</returns>
         internal async Task<T> CallMethodAsync<T>(string endpointName, IList<SteamWebRequestParameter> parameters = null)
         {
-            Debug.Assert(!String.IsNullOrEmpty(endpointName));
+            Debug.Assert(!string.IsNullOrEmpty(endpointName));
 
             return await steamStoreRequest.SendStoreRequestAsync<T>(endpointName, parameters);
         }

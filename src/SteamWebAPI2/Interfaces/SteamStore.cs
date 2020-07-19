@@ -1,13 +1,23 @@
-﻿using Steam.Models.SteamStore;
+﻿using AutoMapper;
+using Steam.Models.SteamStore;
 using SteamWebAPI2.Models.SteamStore;
 using SteamWebAPI2.Utilities;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
     public class SteamStore : SteamStoreInterface, ISteamStore
     {
+        public SteamStore(IMapper mapper) : base(mapper)
+        {
+        }
+
+        public SteamStore(IMapper mapper, HttpClient httpClient) : base(mapper, httpClient)
+        {
+        }
+
         /// <summary>
         /// Maps to the steam store api endpoint: GET http://store.steampowered.com/api/appdetails/
         /// </summary>
@@ -21,7 +31,7 @@ namespace SteamWebAPI2.Interfaces
 
             var appDetails = await CallMethodAsync<AppDetailsContainer>("appdetails", parameters);
 
-            var appDetailsModel = AutoMapperConfiguration.Mapper.Map<Data, StoreAppDetailsDataModel>(appDetails.Data);
+            var appDetailsModel = mapper.Map<Data, StoreAppDetailsDataModel>(appDetails.Data);
 
             return appDetailsModel;
         }
@@ -34,7 +44,7 @@ namespace SteamWebAPI2.Interfaces
         {
             var featuredCategories = await CallMethodAsync<FeaturedCategoriesContainer>("featuredcategories");
 
-            var featuredCategoriesModel = AutoMapperConfiguration.Mapper.Map<FeaturedCategoriesContainer, StoreFeaturedCategoriesModel>(featuredCategories);
+            var featuredCategoriesModel = mapper.Map<FeaturedCategoriesContainer, StoreFeaturedCategoriesModel>(featuredCategories);
 
             return featuredCategoriesModel;
         }
@@ -47,7 +57,7 @@ namespace SteamWebAPI2.Interfaces
         {
             var featuredProducts = await CallMethodAsync<FeaturedProductsContainer>("featured");
 
-            var featuredProductsModel = AutoMapperConfiguration.Mapper.Map<FeaturedProductsContainer, StoreFeaturedProductsModel>(featuredProducts);
+            var featuredProductsModel = mapper.Map<FeaturedProductsContainer, StoreFeaturedProductsModel>(featuredProducts);
 
             return featuredProductsModel;
         }

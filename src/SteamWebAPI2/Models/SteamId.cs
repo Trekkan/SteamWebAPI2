@@ -1,5 +1,6 @@
 ﻿using SteamWebAPI2.Exceptions;
 using SteamWebAPI2.Interfaces;
+using SteamWebAPI2.Utilities;
 using System;
 using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
@@ -64,6 +65,8 @@ namespace SteamWebAPI2.Models
     public class SteamId
     {
         #region Members
+
+        private ISteamUser steamUser;
 
         // Special flags for chat accounts in the high 8 bits of the Steam ID instance. Adopted from https://github.com/xPaw/SteamID.php.
         //private uint instanceFlagClan = 524288;         // (SteamAccountInstanceMask + 1) >> 1
@@ -182,19 +185,24 @@ namespace SteamWebAPI2.Models
         }
 
         /// <summary>
-        /// Constructs a Steam Id by parsing the provided value. This constructor will try to parse the value to a 64-bit Steam Id or a Steam Community Profile URL depending on the input.
+        /// Constructs a Steam Id helper with deferred parsing and resolution because a fuzzy lookup will be needed. Follow up with the ResolveAsync method to
+        /// asynchronously resolve the Steam Id information. This is typically used when you only know the users vanity URL name or don't know what type of Steam Id
+        /// you have on hand.
+        /// </summary>
+        /// <param name="steamWebRequest">Required in the event that the Steam Web API is needed to resolve a Profile URL to a 64-bit Steam ID.</param>
+        public SteamId(ISteamUser steamUser)
+        {
+            this.steamUser = steamUser;
+        }
+
+        /// <summary>
+        /// Constructs a Steam Id by parsing the provided value. This will try to parse the value to a 64-bit Steam Id or a Steam Community Profile URL depending on the input.
         /// If a Profile URL is provided but is unable to be resolved to a 64-bit Steam ID, a VanityUrlNotResolvedException will be thrown. Network access may be required
         /// to receive a return value from this method in the event that the Steam Web API is required.
         /// </summary>
         /// <param name="value">Value to parse, can be a 64-bit Steam ID, a full Steam Community Profile URL, or the user's Steam Community Profile Name.</param>
-        /// <param name="steamWebApiKey">Required in the event that the Steam Web API is needed to resolve a Profile URL to a 64-bit Steam ID.</param>
-        public SteamId(string value, string steamWebApiKey = "")
+        public async Task ResolveAsync(string value)
         {
-            if (String.IsNullOrEmpty(value))
-            {
-                throw new ArgumentNullException("value");
-            }
-
             ulong steamId = 0;
             MatchCollection legacyCheckResult = null;
             MatchCollection modernCheckResult = null;
@@ -216,7 +224,7 @@ namespace SteamWebAPI2.Models
                 string accountTypeCharacter = modernCheckResult[0].Groups[1].Value;
                 string universe = modernCheckResult[0].Groups[2].Value;
                 string accountId = modernCheckResult[0].Groups[3].Value;
-                string instance = String.Empty;
+                string instance = string.Empty;
                 if (modernCheckResult[0].Groups.Count == 5)
                 {
                     instance = modernCheckResult[0].Groups[4].Value;
@@ -241,58 +249,57 @@ namespace SteamWebAPI2.Models
                 bool isUri = Uri.TryCreate(value, UriKind.Absolute, out uriResult)
                     && (uriResult.Scheme == "http" || uriResult.Scheme == "https");
 
-                SteamUser steamUser = new SteamUser(steamWebApiKey);
-
                 try
                 {
-                    Task.Run(async () =>
+                    // the caller provided a uri
+                    if (isUri)
                     {
-                        // the caller provided a uri
-                        if (isUri)
+                        // the caller provided a uri in the format we expected
+                        if (uriResult.Segments.Length == 3)
                         {
-                            // the caller provided a uri in the format we expected
-                            if (uriResult.Segments.Length == 3)
-                            {
-                                string profileId = uriResult.Segments[2];
+                            string profileId = uriResult.Segments[2];
 
-                                // try to parse the 3rd segment as a 64-bit Steam ID (http://steamcommunity.com/profiles/762541427451 for example)
+                            // if a user has a vanity name setup in their steam profile, the steam profile url will be in the format of: 
+                            // http://steamcommunity.com/id/<vanity name>
+                            // otherwise, the format will be:
+                            // http://steamcommunity.com/profiles/<64-bit Steam ID>
+                            if (uriResult.Segments[1] == "id/")
+                            {
+                                steamId = await ResolveSteamIdFromValueAsync(steamUser, profileId);
+                                ConstructFromSteamId64(steamId);
+                                ResolvedFrom = SteamIdResolvedFrom.SteamCommunityUri;
+                            }
+                            else if (uriResult.Segments[1] == "profiles/")
+                            {
                                 bool isSteamId64 = ulong.TryParse(profileId, out steamId);
 
-                                // the third segment isn't a 64-bit Steam ID, check if it's a profile name which resolves to a 64-bit Steam ID
-                                if (!isSteamId64)
+                                if (isSteamId64)
                                 {
-                                    if (String.IsNullOrEmpty(steamWebApiKey))
-                                    {
-                                        throw new InvalidOperationException(ErrorMessages.SteamWebApiKeyNotProvided);
-                                    }
-
-                                    steamId = await ResolveSteamIdFromValueAsync(steamUser, profileId);
+                                    ConstructFromSteamId64(steamId);
+                                    ResolvedFrom = SteamIdResolvedFrom.SteamCommunityUri;
                                 }
-
-                                ConstructFromSteamId64(steamId);
+                                else
+                                {
+                                    throw new InvalidSteamCommunityUriException(ErrorMessages.InvalidSteamCommunityUri);
+                                }
                             }
                             else
                             {
                                 throw new InvalidSteamCommunityUriException(ErrorMessages.InvalidSteamCommunityUri);
                             }
-
-                            ResolvedFrom = SteamIdResolvedFrom.SteamCommunityUri;
                         }
                         else
                         {
-                            if (String.IsNullOrEmpty(steamWebApiKey))
-                            {
-                                throw new InvalidOperationException(ErrorMessages.SteamWebApiKeyNotProvided);
-                            }
-
-                            // not a 64-bit Steam ID and not a uri, try to just resolve it as if it was a Steam Community Profile Name
-                            steamId = await ResolveSteamIdFromValueAsync(steamUser, value);
-
-                            ConstructFromSteamId64(steamId);
-
-                            ResolvedFrom = SteamIdResolvedFrom.SteamCommunityProfileName;
+                            throw new InvalidSteamCommunityUriException(ErrorMessages.InvalidSteamCommunityUri);
                         }
-                    }).Wait();
+                    }
+                    else
+                    {
+                        // not a 64-bit Steam ID and not a uri, try to just resolve it as if it was a Steam Community Profile Name
+                        steamId = await ResolveSteamIdFromValueAsync(steamUser, value);
+                        ConstructFromSteamId64(steamId);
+                        ResolvedFrom = SteamIdResolvedFrom.SteamCommunityProfileName;
+                    }
                 }
                 catch (AggregateException ex)
                 {
@@ -325,7 +332,7 @@ namespace SteamWebAPI2.Models
             else { Instance = SteamInstance.All; }
 
             // override if an instance was provided
-            if (!String.IsNullOrEmpty(instance))
+            if (!string.IsNullOrEmpty(instance))
             {
                 Instance = (SteamInstance)uint.Parse(instance);
             }
@@ -406,7 +413,7 @@ namespace SteamWebAPI2.Models
         /// <param name="steamUser"></param>
         /// <param name="value"></param>
         /// <returns></returns>
-        private static async Task<ulong> ResolveSteamIdFromValueAsync(SteamUser steamUser, string value)
+        private static async Task<ulong> ResolveSteamIdFromValueAsync(ISteamUser steamUser, string value)
         {
             ulong steamId64 = 0;
 
@@ -435,7 +442,7 @@ namespace SteamWebAPI2.Models
             // Y = lowest bit of Account Id (always 0 or 1)
             uint y = AccountId & 1;
 
-            return String.Format("STEAM_{0}:{1}:{2}", x, y, z);
+            return string.Format("STEAM_{0}:{1}:{2}", x, y, z);
         }
 
         /// <summary>
@@ -454,7 +461,7 @@ namespace SteamWebAPI2.Models
             // A = account id
             uint a = AccountId;
 
-            return String.Format("[{0}:{1}:{2}]", c, u, a);
+            return string.Format("[{0}:{1}:{2}]", c, u, a);
         }
 
         /// <summary>

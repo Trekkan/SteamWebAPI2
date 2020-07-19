@@ -1,4 +1,5 @@
-﻿using Steam.Models;
+﻿using AutoMapper;
+using Steam.Models;
 using SteamWebAPI2.Models;
 using SteamWebAPI2.Utilities;
 using System;
@@ -7,33 +8,28 @@ using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
-    public enum GCVersionAppId
-    {
-        TeamFortress2 = 440,
-        Dota2 = 570,
-        CounterStrikeGO = 730
-    }
-
     public class GCVersion : IGCVersion
     {
+        private readonly ISteamWebInterface steamWebInterface;
+        private readonly IMapper mapper;
+
         private uint appId;
 
         // The API only exposes certain methods for certain App Ids in the EconItems interface
         // I'm hard coding the values for now until I come up with a better, more dynamic solution
         private List<uint> validClientVersionAppIds = new List<uint>();
-
         private List<uint> validServerVersionAppIds = new List<uint>();
-
-        private ISteamWebInterface steamWebInterface;
 
         /// <summary>
         /// Default constructor established the Steam Web API key and initializes for subsequent method calls
         /// </summary>
-        /// <param name="steamWebApiKey"></param>
-        public GCVersion(string steamWebApiKey, GCVersionAppId appId, ISteamWebInterface steamWebInterface = null)
+        /// <param name="steamWebRequest"></param>
+        public GCVersion(IMapper mapper, ISteamWebRequest steamWebRequest, AppId appId, ISteamWebInterface steamWebInterface = null)
         {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+
             this.steamWebInterface = steamWebInterface == null
-                ? new SteamWebInterface(steamWebApiKey, "IGCVersion_" + (uint)appId)
+                ? new SteamWebInterface("IGCVersion_" + (uint)appId, steamWebRequest)
                 : steamWebInterface;
 
             if (appId <= 0)
@@ -43,12 +39,16 @@ namespace SteamWebAPI2.Interfaces
 
             this.appId = (uint)appId;
 
-            validClientVersionAppIds.Add(440);
-            validClientVersionAppIds.Add(570);
+            validClientVersionAppIds.Add((int)AppId.TeamFortress2);
+            validClientVersionAppIds.Add((int)AppId.Dota2);
+            validClientVersionAppIds.Add((int)AppId.Artifact);
+            validClientVersionAppIds.Add((int)AppId.DotaUnderlords);
 
-            validServerVersionAppIds.Add(440);
-            validServerVersionAppIds.Add(570);
-            validServerVersionAppIds.Add(730);
+            validServerVersionAppIds.Add((int)AppId.TeamFortress2);
+            validServerVersionAppIds.Add((int)AppId.Dota2);
+            validServerVersionAppIds.Add((int)AppId.CounterStrikeGO);
+            validServerVersionAppIds.Add((int)AppId.Artifact);
+            validServerVersionAppIds.Add((int)AppId.DotaUnderlords);
         }
 
         /// <summary>
@@ -59,12 +59,12 @@ namespace SteamWebAPI2.Interfaces
         {
             if (!validClientVersionAppIds.Contains(appId))
             {
-                throw new InvalidOperationException(String.Format("AppId {0} is not valid for the GetClientVersion method.", appId));
+                throw new InvalidOperationException(string.Format("AppId {0} is not valid for the GetClientVersion method.", appId));
             }
 
             var steamWebResponse = await steamWebInterface.GetAsync<GameClientResultContainer>("GetClientVersion", 1);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<GameClientResultContainer>, ISteamWebResponse<GameClientResultModel>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<GameClientResultContainer>, ISteamWebResponse<GameClientResultModel>>(steamWebResponse);
 
             return steamWebResponseModel;
         }
@@ -77,12 +77,12 @@ namespace SteamWebAPI2.Interfaces
         {
             if (!validServerVersionAppIds.Contains(appId))
             {
-                throw new InvalidOperationException(String.Format("AppId {0} is not valid for the GetServerVersion method.", appId));
+                throw new InvalidOperationException(string.Format("AppId {0} is not valid for the GetServerVersion method.", appId));
             }
 
             var steamWebResponse = await steamWebInterface.GetAsync<GameClientResultContainer>("GetServerVersion", 1);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<GameClientResultContainer>, ISteamWebResponse<GameClientResultModel>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<GameClientResultContainer>, ISteamWebResponse<GameClientResultModel>>(steamWebResponse);
 
             return steamWebResponseModel;
         }

@@ -1,24 +1,28 @@
-﻿using Steam.Models;
+﻿using AutoMapper;
+using Steam.Models;
 using SteamWebAPI2.Models;
 using SteamWebAPI2.Utilities;
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
     public class SteamWebAPIUtil : ISteamWebAPIUtil
     {
-        private ISteamWebInterface steamWebInterface;
+        private readonly ISteamWebInterface steamWebInterface;
+        private readonly IMapper mapper;
 
         /// <summary>
         /// Default constructor established the Steam Web API key and initializes for subsequent method calls
         /// </summary>
-        /// <param name="steamWebApiKey"></param>
-        public SteamWebAPIUtil(string steamWebApiKey, ISteamWebInterface steamWebInterface = null)
+        /// <param name="steamWebRequest"></param>
+        public SteamWebAPIUtil(IMapper mapper, ISteamWebRequest steamWebRequest, ISteamWebInterface steamWebInterface = null)
         {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            
             this.steamWebInterface = steamWebInterface == null
-                ? new SteamWebInterface(steamWebApiKey, "ISteamWebAPIUtil")
+                ? new SteamWebInterface("ISteamWebAPIUtil", steamWebRequest)
                 : steamWebInterface;
         }
 
@@ -30,8 +34,8 @@ namespace SteamWebAPI2.Interfaces
         {
             var steamServerInfo = await steamWebInterface.GetAsync<SteamServerInfo>("GetServerInfo", 1);
 
-            var steamServerInfoModel = AutoMapperConfiguration.Mapper.Map<
-                ISteamWebResponse<SteamServerInfo>, 
+            var steamServerInfoModel = mapper.Map<
+                ISteamWebResponse<SteamServerInfo>,
                 ISteamWebResponse<SteamServerInfoModel>>(steamServerInfo);
 
             return steamServerInfoModel;
@@ -45,8 +49,8 @@ namespace SteamWebAPI2.Interfaces
         {
             var steamWebResponse = await steamWebInterface.GetAsync<SteamApiListContainer>("GetSupportedAPIList", 1);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
-                ISteamWebResponse<SteamApiListContainer>, 
+            var steamWebResponseModel = mapper.Map<
+                ISteamWebResponse<SteamApiListContainer>,
                 ISteamWebResponse<IReadOnlyCollection<SteamInterfaceModel>>>(steamWebResponse);
 
             return steamWebResponseModel;

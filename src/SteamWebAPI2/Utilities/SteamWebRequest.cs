@@ -1,8 +1,8 @@
 ﻿using Newtonsoft.Json;
-using SteamWebAPI2.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -22,32 +22,31 @@ namespace SteamWebAPI2.Utilities
     /// </summary>
     internal class SteamWebRequest : ISteamWebRequest
     {
-        private string steamWebApiBaseUrl;
+        private readonly string steamWebApiBaseUrl;
         private readonly string steamWebApiKey;
-        private ISteamWebHttpClient httpClient;
+        private readonly HttpClient httpClient;
 
         /// <summary>
         /// Every web request requires a secret Steam Web API key
         /// </summary>
         /// <param name="steamWebApiBaseUrl">Base URL for the API (such as http://api.steampowered.com)</param>
         /// <param name="steamWebApiKey">Secret Steam Web API key provided at the Valve developer website</param>
-        /// <param name="httpClient">Optional custom http client implementation for dependency injection</param>
-        public SteamWebRequest(string steamWebApiBaseUrl, string steamWebApiKey, ISteamWebHttpClient httpClient = null)
+        /// <param name="steamWebHttpClient">Optional custom http client implementation for dependency injection</param>
+        public SteamWebRequest(string steamWebApiBaseUrl, string steamWebApiKey, HttpClient httpClient = null)
         {
-            this.httpClient = httpClient == null ? new SteamWebHttpClient() : httpClient;
-
-            if (String.IsNullOrWhiteSpace(steamWebApiBaseUrl))
+            if (string.IsNullOrWhiteSpace(steamWebApiBaseUrl))
             {
-                throw new ArgumentNullException("steamWebApiBaseUrl");
+                throw new ArgumentNullException(nameof(steamWebApiBaseUrl));
             }
 
-            if (String.IsNullOrWhiteSpace(steamWebApiKey))
+            if (string.IsNullOrWhiteSpace(steamWebApiKey))
             {
-                throw new ArgumentNullException("steamWebApiKey");
+                throw new ArgumentNullException(nameof(steamWebApiKey));
             }
 
             this.steamWebApiBaseUrl = steamWebApiBaseUrl;
             this.steamWebApiKey = steamWebApiKey;
+            this.httpClient = httpClient ?? new HttpClient();
         }
 
         /// <summary>
@@ -61,10 +60,6 @@ namespace SteamWebAPI2.Utilities
         /// <returns>Deserialized object from JSON response</returns>
         public async Task<ISteamWebResponse<T>> GetAsync<T>(string interfaceName, string methodName, int methodVersion, IList<SteamWebRequestParameter> parameters = null)
         {
-            Debug.Assert(!String.IsNullOrWhiteSpace(interfaceName));
-            Debug.Assert(!String.IsNullOrWhiteSpace(methodName));
-            Debug.Assert(methodVersion > 0);
-
             return await SendWebRequestAsync<T>(HttpMethod.GET, interfaceName, methodName, methodVersion, parameters);
         }
 
@@ -79,10 +74,6 @@ namespace SteamWebAPI2.Utilities
         /// <returns>Deserialized object from JSON response</returns>
         public async Task<ISteamWebResponse<T>> PostAsync<T>(string interfaceName, string methodName, int methodVersion, IList<SteamWebRequestParameter> parameters = null)
         {
-            Debug.Assert(!String.IsNullOrWhiteSpace(interfaceName));
-            Debug.Assert(!String.IsNullOrWhiteSpace(methodName));
-            Debug.Assert(methodVersion > 0);
-
             return await SendWebRequestAsync<T>(HttpMethod.POST, interfaceName, methodName, methodVersion, parameters);
         }
 
@@ -98,9 +89,20 @@ namespace SteamWebAPI2.Utilities
         /// <returns>Deserialized object from JSON response</returns>
         private async Task<ISteamWebResponse<T>> SendWebRequestAsync<T>(HttpMethod httpMethod, string interfaceName, string methodName, int methodVersion, IList<SteamWebRequestParameter> parameters = null)
         {
-            Debug.Assert(!String.IsNullOrWhiteSpace(interfaceName));
-            Debug.Assert(!String.IsNullOrWhiteSpace(methodName));
-            Debug.Assert(methodVersion > 0);
+            if (string.IsNullOrWhiteSpace(interfaceName))
+            {
+                throw new ArgumentNullException(nameof(interfaceName));
+            }
+
+            if (string.IsNullOrWhiteSpace(methodName))
+            {
+                throw new ArgumentNullException(nameof(methodName));
+            }
+
+            if (methodVersion <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(methodVersion));
+            }
 
             if (parameters == null)
             {
@@ -109,31 +111,49 @@ namespace SteamWebAPI2.Utilities
 
             parameters.Insert(0, new SteamWebRequestParameter("key", steamWebApiKey));
 
-            string command = BuildRequestCommand(interfaceName, methodName, methodVersion, parameters);
-
             HttpResponseMessage httpResponse = null;
 
             if (httpMethod == HttpMethod.GET)
             {
+                string command = BuildRequestCommand(interfaceName, methodName, methodVersion, parameters);
+
                 httpResponse = await httpClient.GetAsync(command).ConfigureAwait(false);
+                httpResponse.EnsureSuccessStatusCode();
+                if (httpResponse.Content == null)
+                {
+                    httpResponse = new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
             }
             else if (httpMethod == HttpMethod.POST)
             {
-                httpResponse = await httpClient.PostAsync(command).ConfigureAwait(false);
+                // Null is passed instead of the parameters so that they are not appended to the URL.
+                string command = BuildRequestCommand(interfaceName, methodName, methodVersion, null);
+
+                // Instead, parameters are passed through this container.
+                FormUrlEncodedContent content = BuildRequestContent(parameters);
+
+                httpResponse = await httpClient.PostAsync(command, content).ConfigureAwait(false);
+                httpResponse.EnsureSuccessStatusCode();
+                if (httpResponse.Content == null)
+                {
+                    httpResponse = new HttpResponseMessage(HttpStatusCode.NoContent);
+                }
             }
+
+            var headers = httpResponse.Content?.Headers;
 
             // extract http headers that we care about
             SteamWebResponse<T> steamWebResponse = new SteamWebResponse<T>()
             {
-                ContentLength = httpResponse.Content.Headers.ContentLength,
-                ContentType = httpResponse.Content.Headers.ContentType.MediaType,
-                ContentTypeCharSet = httpResponse.Content.Headers.ContentType.CharSet,
-                Expires = httpResponse.Content.Headers.Expires,
-                LastModified = httpResponse.Content.Headers.LastModified,
+                ContentLength = headers?.ContentLength,
+                ContentType = headers?.ContentType?.MediaType,
+                ContentTypeCharSet = headers?.ContentType?.CharSet,
+                Expires = headers?.Expires,
+                LastModified = headers?.LastModified,
             };
 
             // deserialize the content if we have any as indicated by the response code
-            if (httpResponse.StatusCode != HttpStatusCode.NoContent)
+            if (httpResponse.StatusCode != HttpStatusCode.NoContent && httpResponse.Content != null)
             {
                 string responseContent = await httpResponse.Content.ReadAsStringAsync();
                 responseContent = CleanupResponseString(responseContent);
@@ -152,27 +172,70 @@ namespace SteamWebAPI2.Utilities
         /// <param name="methodVersion">Example: 1</param>
         /// <param name="parameters">Example: { key: 8A05823474AB641D684EBD95AB5F2E47 } </param>
         /// <returns></returns>
-        private string BuildRequestCommand(string interfaceName, string methodName, int methodVersion, IList<SteamWebRequestParameter> parameters)
+        private string BuildRequestCommand(string interfaceName, string methodName, int methodVersion, IEnumerable<SteamWebRequestParameter> parameters)
         {
-            Debug.Assert(!String.IsNullOrWhiteSpace(interfaceName));
-            Debug.Assert(!String.IsNullOrWhiteSpace(methodName));
-            Debug.Assert(methodVersion > 0);
-
-            if (steamWebApiBaseUrl.EndsWith("/"))
+            if (string.IsNullOrWhiteSpace(interfaceName))
             {
-                steamWebApiBaseUrl = steamWebApiBaseUrl.Remove(steamWebApiBaseUrl.Length - 1, 1);
+                throw new ArgumentNullException(nameof(interfaceName));
             }
 
-            string commandUrl = String.Format("{0}/{1}/{2}/v{3}/", steamWebApiBaseUrl, interfaceName, methodName, methodVersion);
+            if (string.IsNullOrWhiteSpace(methodName))
+            {
+                throw new ArgumentNullException(nameof(methodName));
+            }
+
+            if (methodVersion <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(methodVersion));
+            }
+
+            if (parameters == null)
+            {
+                parameters = new List<SteamWebRequestParameter>();
+            }
+
+            string steamWebApiUrl = steamWebApiBaseUrl;
+            if (steamWebApiBaseUrl.EndsWith("/"))
+            {
+                steamWebApiUrl = steamWebApiUrl.Remove(steamWebApiUrl.Length - 1, 1);
+            }
+
+            string commandUrl = $"{steamWebApiUrl}/{interfaceName}/{methodName}/v{methodVersion}/";
 
             // if we have parameters, join them together with & delimiter and append them to the command URL
-            if (parameters != null && parameters.Count > 0)
+            if (parameters != null && parameters.Count() > 0)
             {
-                string parameterString = String.Join("&", parameters);
-                commandUrl += String.Format("?{0}", parameterString);
+                string parameterString = string.Join("&", parameters);
+                commandUrl += $"?{parameterString}";
             }
 
             return commandUrl;
+        }
+
+        /// <summary>
+        /// Encodes request parameters using application/x-www-form-urlencoded MIME type.
+        /// The resulting container enables parameters to be sent properly in a POST request.
+        /// </summary>
+        /// <param name="parameters">Example: { key: 8A05823474AB641D684EBD95AB5F2E47 } </param>
+        /// <returns></returns>
+        private static FormUrlEncodedContent BuildRequestContent(IEnumerable<SteamWebRequestParameter> parameters)
+        {
+            if (parameters == null)
+            {
+                throw new ArgumentNullException(nameof(parameters));
+            }
+
+            if (!parameters.Any())
+            {
+                parameters = new List<SteamWebRequestParameter>();
+            }
+
+            if (parameters != null && parameters.Count() > 0)
+            {
+                return new FormUrlEncodedContent(parameters.ToDictionary(p => p.Name, p => p.Value));
+            }
+
+            return null;
         }
 
         /// <summary>
@@ -182,9 +245,9 @@ namespace SteamWebAPI2.Utilities
         /// <returns>String containing the http endpoint response contents</returns>
         private static string CleanupResponseString(string stringToClean)
         {
-            if (String.IsNullOrWhiteSpace(stringToClean))
+            if (string.IsNullOrWhiteSpace(stringToClean))
             {
-                return String.Empty;
+                return string.Empty;
             }
 
             stringToClean = stringToClean.Replace("\n", "");

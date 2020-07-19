@@ -1,44 +1,29 @@
-﻿using Steam.Models.DOTA2;
+﻿using AutoMapper;
+using Steam.Models.DOTA2;
 using SteamWebAPI2.Models.DOTA2;
 using SteamWebAPI2.Utilities;
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2.Interfaces
 {
     public class DOTA2Match : IDOTA2Match
     {
-        private ISteamWebInterface steamWebInterface;
+        private readonly IMapper mapper;
+        private readonly ISteamWebInterface steamWebInterface;
 
         /// <summary>
         /// Default constructor established the Steam Web API key and initializes for subsequent method calls
         /// </summary>
         /// <param name="steamWebApiKey"></param>
-        public DOTA2Match(string steamWebApiKey, ISteamWebInterface steamWebInterface = null)
+        public DOTA2Match(IMapper mapper, ISteamWebRequest steamWebRequest, ISteamWebInterface steamWebInterface = null)
         {
+            this.mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
+            
             this.steamWebInterface = steamWebInterface == null
-                ? new SteamWebInterface(steamWebApiKey, "IDOTA2Match_570")
+                ? new SteamWebInterface("IDOTA2Match_570", steamWebRequest)
                 : steamWebInterface;
-        }
-
-        /// <summary>
-        /// Returns a collection of all leagues registered in Dota 2.
-        /// </summary>
-        /// <param name="language"></param>
-        /// <returns></returns>
-        public async Task<ISteamWebResponse<IReadOnlyCollection<LeagueModel>>> GetLeagueListingAsync(string language = "en_us")
-        {
-            List<SteamWebRequestParameter> parameters = new List<SteamWebRequestParameter>();
-
-            parameters.AddIfHasValue(language, "language");
-
-            var steamWebResponse = await steamWebInterface.GetAsync<LeagueResultContainer>("GetLeagueListing", 1, parameters);
-
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<LeagueResultContainer>, ISteamWebResponse<IReadOnlyCollection<LeagueModel>>>(steamWebResponse);
-
-            return steamWebResponseModel;
         }
 
         /// <summary>
@@ -56,7 +41,7 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<LiveLeagueGameResultContainer>("GetLiveLeagueGames", 1);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<LiveLeagueGameResultContainer>, ISteamWebResponse<IReadOnlyCollection<LiveLeagueGameModel>>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<LiveLeagueGameResultContainer>, ISteamWebResponse<IReadOnlyCollection<LiveLeagueGameModel>>>(steamWebResponse);
 
             return steamWebResponseModel;
         }
@@ -74,7 +59,7 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<MatchDetailResultContainer>("GetMatchDetails", 1, parameters);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<MatchDetailResultContainer>, ISteamWebResponse<MatchDetailModel>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<MatchDetailResultContainer>, ISteamWebResponse<MatchDetailModel>>(steamWebResponse);
 
             return steamWebResponseModel;
         }
@@ -110,7 +95,7 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<MatchHistoryResultContainer>("GetMatchHistory", 1, parameters);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<MatchHistoryResultContainer>, ISteamWebResponse<MatchHistoryModel>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<MatchHistoryResultContainer>, ISteamWebResponse<MatchHistoryModel>>(steamWebResponse);
 
             return steamWebResponseModel;
         }
@@ -130,7 +115,7 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<MatchHistoryBySequenceNumberResultContainer>("GetMatchHistoryBySequenceNum", 1, parameters);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<
+            var steamWebResponseModel = mapper.Map<
                 ISteamWebResponse<MatchHistoryBySequenceNumberResultContainer>,
                 ISteamWebResponse<IReadOnlyCollection<MatchHistoryMatchModel>>>(steamWebResponse);
 
@@ -143,7 +128,7 @@ namespace SteamWebAPI2.Interfaces
         /// <param name="startAtTeamId"></param>
         /// <param name="teamsRequested"></param>
         /// <returns></returns>
-        public async Task<ISteamWebResponse<IReadOnlyCollection<TeamInfoModel>>> GetTeamInfoByTeamIdAsync(long? startAtTeamId = null, uint? teamsRequested = null)
+        public async Task<ISteamWebResponse<IReadOnlyCollection<Steam.Models.DOTA2.TeamInfo>>> GetTeamInfoByTeamIdAsync(long? startAtTeamId = null, uint? teamsRequested = null)
         {
             List<SteamWebRequestParameter> parameters = new List<SteamWebRequestParameter>();
 
@@ -152,7 +137,7 @@ namespace SteamWebAPI2.Interfaces
 
             var steamWebResponse = await steamWebInterface.GetAsync<TeamInfoResultContainer>("GetTeamInfoByTeamID", 1, parameters);
 
-            var steamWebResponseModel = AutoMapperConfiguration.Mapper.Map<ISteamWebResponse<TeamInfoResultContainer>, ISteamWebResponse<IReadOnlyCollection<TeamInfoModel>>>(steamWebResponse);
+            var steamWebResponseModel = mapper.Map<ISteamWebResponse<TeamInfoResultContainer>, ISteamWebResponse<IReadOnlyCollection<Steam.Models.DOTA2.TeamInfo>>>(steamWebResponse);
 
             return steamWebResponseModel;
         }

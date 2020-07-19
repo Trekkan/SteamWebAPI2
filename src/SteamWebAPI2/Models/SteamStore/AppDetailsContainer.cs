@@ -3,24 +3,6 @@ using SteamWebAPI2.Utilities.JsonConverters;
 
 namespace SteamWebAPI2.Models.SteamStore
 {
-    internal class PcRequirements
-    {
-        [JsonProperty("minimum")]
-        public string Minimum { get; set; }
-    }
-
-    internal class MacRequirements
-    {
-        [JsonProperty("minimum")]
-        public string Minimum { get; set; }
-    }
-
-    internal class LinuxRequirements
-    {
-        [JsonProperty("minimum")]
-        public string Minimum { get; set; }
-    }
-
     internal class Sub
     {
         [JsonProperty("packageid")]
@@ -66,7 +48,7 @@ namespace SteamWebAPI2.Models.SteamStore
         public string SaveText { get; set; }
 
         [JsonProperty("display_type")]
-        public int DisplayType { get; set; }
+        public uint DisplayType { get; set; }
 
         [JsonProperty("is_recurring_subscription")]
         public string IsRecurringSubscription { get; set; }
@@ -177,6 +159,27 @@ namespace SteamWebAPI2.Models.SteamStore
         public string Email { get; set; }
     }
 
+    internal class Price
+    {
+        [JsonProperty("currency")]
+        public string Currency { get; set; }
+
+        [JsonProperty("initial")]
+        public uint Initial { get; set; }
+
+        [JsonProperty("final")]
+        public uint Final { get; set; }
+
+        [JsonProperty("discount_percent")]
+        public uint DiscountPercent { get; set; }
+
+        [JsonProperty("initial_formatted")]
+        public string InitialFormatted { get; set; }
+
+        [JsonProperty("final_formatted")]
+        public string FinalFormatted { get; set; }
+    }
+
     internal class Data
     {
         [JsonProperty("type")]
@@ -194,6 +197,9 @@ namespace SteamWebAPI2.Models.SteamStore
         [JsonProperty("is_free")]
         public bool IsFree { get; set; }
 
+        [JsonProperty("controller_support")]
+        public string ControllerSupport { get; set; }
+
         [JsonProperty("dlc")]
         public uint[] Dlc { get; set; }
 
@@ -202,6 +208,9 @@ namespace SteamWebAPI2.Models.SteamStore
 
         [JsonProperty("about_the_game")]
         public string AboutTheGame { get; set; }
+
+        [JsonProperty("short_description")]
+        public string ShortDescription { get; set; }
 
         [JsonProperty("supported_languages")]
         public string SupportedLanguages { get; set; }
@@ -213,19 +222,22 @@ namespace SteamWebAPI2.Models.SteamStore
         public string Website { get; set; }
 
         [JsonProperty("pc_requirements")]
-        public PcRequirements PcRequirements { get; set; }
+        public dynamic PcRequirements { get; set; }
 
         [JsonProperty("mac_requirements")]
-        public MacRequirements MacRequirements { get; set; }
+        public dynamic MacRequirements { get; set; }
 
         [JsonProperty("linux_requirements")]
-        public LinuxRequirements LinuxRequirements { get; set; }
+        public dynamic LinuxRequirements { get; set; }
 
         [JsonProperty("developers")]
         public string[] Developers { get; set; }
 
         [JsonProperty("publishers")]
         public string[] Publishers { get; set; }
+
+        [JsonProperty("price_overview")]
+        public Price PriceOverview { get; set; }
 
         [JsonProperty("packages")]
         public string[] Packages { get; set; }
@@ -254,6 +266,9 @@ namespace SteamWebAPI2.Models.SteamStore
         [JsonProperty("recommendations")]
         public Recommendations Recommendations { get; set; }
 
+        [JsonProperty("achievements")]
+        public Achievement Achievements { get; set; }
+
         [JsonProperty("release_date")]
         public ReleaseDate ReleaseDate { get; set; }
 
@@ -262,6 +277,36 @@ namespace SteamWebAPI2.Models.SteamStore
 
         [JsonProperty("background")]
         public string Background { get; set; }
+
+        [JsonProperty("content_descriptors")]
+        public ContentDescriptor ContentDescriptors { get; set; }
+    }
+
+    public class ContentDescriptor
+    {
+        [JsonProperty("ids")]
+        public uint[] Ids { get; set; }
+
+        [JsonProperty("notes")]
+        public string Notes { get; set; }
+    }
+
+    public class Achievement
+    {
+        [JsonProperty("total")]
+        public uint Total { get; set; }
+
+        [JsonProperty("highlighted")]
+        public Highlighted[] Highlighted { get; set; }
+    }
+
+    public class Highlighted
+    {
+        [JsonProperty("name")]
+        public string Name { get; set; }
+
+        [JsonProperty("path")]
+        public string Path { get; set; }
     }
 
     [JsonConverter(typeof(StoreAppDetailsContainerJsonConverter))]

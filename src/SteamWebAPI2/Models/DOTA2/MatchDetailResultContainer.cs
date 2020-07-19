@@ -99,13 +99,13 @@ namespace SteamWebAPI2.Models.DOTA2
         public uint Duration { get; set; }
 
         [JsonProperty(PropertyName = "start_time")]
-        public long StartTime { get; set; }
+        public ulong StartTime { get; set; }
 
         [JsonProperty(PropertyName = "match_id")]
         public ulong MatchId { get; set; }
 
         [JsonProperty(PropertyName = "match_seq_num")]
-        public uint MatchSequenceNumber { get; set; }
+        public ulong MatchSequenceNumber { get; set; }
 
         [JsonProperty(PropertyName = "tower_status_radiant")]
         public uint TowerStatusRadiant { get; set; }

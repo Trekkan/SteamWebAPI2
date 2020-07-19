@@ -3,9 +3,7 @@ using SteamWebAPI2.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace SteamWebAPI2
@@ -16,6 +14,7 @@ namespace SteamWebAPI2
     internal class SteamStoreRequest
     {
         private string steamStoreApiBaseUrl;
+        private readonly HttpClient httpClient;
 
         /// <summary>
         /// Constructs a Steam Store Web API request
@@ -23,12 +22,23 @@ namespace SteamWebAPI2
         /// <param name="steamStoreApiBaseUrl">Steam Store Web API URL</param>
         public SteamStoreRequest(string steamStoreApiBaseUrl)
         {
-            if (String.IsNullOrEmpty(steamStoreApiBaseUrl))
+            if (string.IsNullOrEmpty(steamStoreApiBaseUrl))
             {
                 throw new ArgumentNullException("steamStoreApiBaseUrl");
             }
 
             this.steamStoreApiBaseUrl = steamStoreApiBaseUrl;
+        }
+
+        public SteamStoreRequest(string steamStoreApiBaseUrl, HttpClient httpClient)
+        {
+            if (string.IsNullOrEmpty(steamStoreApiBaseUrl))
+            {
+                throw new ArgumentNullException("steamStoreApiBaseUrl");
+            }
+
+            this.steamStoreApiBaseUrl = steamStoreApiBaseUrl;
+            this.httpClient = httpClient;
         }
 
         /// <summary>
@@ -39,7 +49,7 @@ namespace SteamWebAPI2
         /// <returns></returns>
         public async Task<T> SendStoreRequestAsync<T>(string endpointName)
         {
-            Debug.Assert(!String.IsNullOrEmpty(endpointName));
+            Debug.Assert(!string.IsNullOrEmpty(endpointName));
 
             return await SendStoreRequestAsync<T>(endpointName, null);
         }
@@ -53,7 +63,7 @@ namespace SteamWebAPI2
         /// <returns>Deserialized response object</returns>
         public async Task<T> SendStoreRequestAsync<T>(string endpointName, IList<SteamWebRequestParameter> parameters)
         {
-            Debug.Assert(!String.IsNullOrEmpty(endpointName));
+            Debug.Assert(!string.IsNullOrEmpty(endpointName));
 
             if (parameters == null)
             {
@@ -73,10 +83,10 @@ namespace SteamWebAPI2
         /// </summary>
         /// <param name="command">Command (method endpoint) to send to an interface</param>
         /// <returns>HTTP response as a string without tabs and newlines</returns>
-        private static async Task<string> GetHttpStringResponseAsync(string command)
+        private async Task<string> GetHttpStringResponseAsync(string command)
         {
-            HttpClient httpClient = new HttpClient();
-            string response = await httpClient.GetStringAsync(command);
+            HttpClient client = httpClient ?? new HttpClient();
+            string response = await client.GetStringAsync(command);
             response = response.Replace("\n", "");
             response = response.Replace("\t", "");
             return response;
@@ -90,20 +100,20 @@ namespace SteamWebAPI2
         /// <returns>Deserialized response object</returns>
         public string BuildRequestCommand(string endpointName, IList<SteamWebRequestParameter> parameters)
         {
-            Debug.Assert(!String.IsNullOrEmpty(endpointName));
+            Debug.Assert(!string.IsNullOrEmpty(endpointName));
 
             if (steamStoreApiBaseUrl.EndsWith("/"))
             {
                 steamStoreApiBaseUrl = steamStoreApiBaseUrl.Remove(steamStoreApiBaseUrl.Length - 1, 1);
             }
 
-            string commandUrl = String.Format("{0}/{1}/", steamStoreApiBaseUrl, endpointName);
+            string commandUrl = string.Format("{0}/{1}/", steamStoreApiBaseUrl, endpointName);
 
             // if we have parameters, join them together with & delimiter and append them to the command URL
             if (parameters != null && parameters.Count > 0)
             {
-                string parameterString = String.Join("&", parameters);
-                commandUrl += String.Format("?{0}", parameterString);
+                string parameterString = string.Join("&", parameters);
+                commandUrl += string.Format("?{0}", parameterString);
             }
 
             return commandUrl;
